@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.arcanavox.colorhistory",
+  "name": "Color History",
+  "version": "0.1.0",
+  "author": "Arcana Vox",
+  "license": "MIT",
+  "description": "Keeps every color you pick with hyprpicker, ready to copy back as hex, rgb or hsl.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Color History",
+    "description": "The colors you picked with hyprpicker, newest first",
+    "category": "System",
+    "defaultSection": "right",
+    "allowMultiple": false
+  }
+}
