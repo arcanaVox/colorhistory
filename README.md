@@ -12,6 +12,21 @@ down from the bar like those panels do: newest first, one row per color, swatch
 on the left and the value beside it. With no history the widget hides itself
 entirely, and the bar closes the gap.
 
+## Requirements
+
+Omarchy 4 (Quattro) and its Quickshell bar. Everything the plugin calls ships
+with Omarchy's base install, so there is nothing extra to package:
+
+| | |
+|---|---|
+| `hyprpicker` | the picker itself. `pick.sh` runs it and reads its output. |
+| `wl-clipboard` | `wl-copy`, for putting a color back on the clipboard. `hyprpicker -a` needs it too. |
+| `hyprctl` | registers the two keybindings at shell start, through `hyprctl eval`. |
+| `omarchy-shell` | the plugin host, and how the keybinding reaches the panel. |
+
+Beyond those, `pick.sh` uses only `pkill`, `grep`, `tail` and `date`. There are
+no bundled binaries, no network access, and no runtime downloads.
+
 ## Install
 
 ```bash
@@ -29,6 +44,26 @@ Check it took:
 hyprctl binds -j | jq -r '.[] | select(.description|test("Color")) | .description'
 # Color picker
 # Color history
+```
+
+## Remove
+
+```bash
+omarchy plugin remove io.github.arcanavox.colorhistory
+omarchy restart shell
+```
+
+The restart matters: the keybindings live in Hyprland's runtime, not on disk, so
+`SUPER+PRINT` keeps running the plugin's `pick.sh` until the shell comes back
+and stops re-registering it. After the restart your own config is authoritative
+again and `SUPER+PRINT` returns to whatever it was before.
+
+Nothing outside the plugin's own directory is modified, so removal leaves no
+edits to clean up. Two state files remain if you want them gone:
+
+```bash
+rm -f ~/.local/state/omarchy/color-history.tsv \
+      ~/.local/state/omarchy/color-history-format
 ```
 
 ## Using it
@@ -90,6 +125,11 @@ non-legacy parsers" — and it exits 0 while refusing, so anything built on it
 fails silently.) Nothing is written to your config,
 and removing the plugin needs no cleanup — but the binds do stay live until the
 next shell restart after you disable it.
+
+It does take `SUPER+PRINT` over from Omarchy's default color-picker binding —
+that is the point, since that binding is what records a pick — but it does so in
+Hyprland's runtime only. No file of yours is edited, and a shell restart after
+removal hands the key straight back.
 
 To put them somewhere else, unbind and rebind in your own `bindings.lua`; your
 config loads after the plugin, so it wins:
