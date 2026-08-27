@@ -6,7 +6,9 @@
 
 set -o pipefail
 
+HERE=$(dirname "$(readlink -f "$0")")
 HISTORY="${COLOR_HISTORY_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/color-history.tsv}"
+PLUGIN_ID=io.github.arcanavox.colorhistory
 
 # A second press cancels an open picker. The binding this replaces did the same
 # thing, and without it SUPER+PRINT would stack a second picker on the first.
@@ -26,10 +28,11 @@ color=${color^^}
 
 mkdir -p "${HISTORY%/*}" || exit 1
 
-# Append, never rewrite: a sub-4KB append is atomic on Linux, so two picks in
-# flight cannot interleave and no lockfile is needed. The shell is the only
-# other writer, and it only rewrites while the grid is open — which cannot
-# overlap a pick, since hyprpicker owns the screen for the duration.
-# ponytail: lost-update race if that ever stops being true; a flock on $HISTORY
-# in both writers closes it.
-printf '%s\t%s\n' "$(date +%s)" "$color" >>"$HISTORY"
+# Not `>>`: an ordinary redirection follows a symlink, so anything that plants
+# one at this path redirects the append into another of the user's files. The
+# helper opens with O_NOFOLLOW and refuses anything that is not a regular file.
+python3 "$HERE/safeio.py" append "$HISTORY" "$(date +%s)	$color" || exit 1
+
+# Tell the shell to re-read. Best effort: the history is on disk either way, and
+# the panel reloads when it opens.
+omarchy-shell -q "$PLUGIN_ID" refresh 2>/dev/null || true

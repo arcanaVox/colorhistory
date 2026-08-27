@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "."
@@ -14,12 +15,30 @@ Panel {
   id: root
   moduleName: "io.github.arcanavox.colorhistory"
   ipcTarget: "io.github.arcanavox.colorhistory"
+  // manageIpc: false so this panel owns the single IpcHandler the target
+  // permits — the base's handler has no refresh, and pick.sh needs one to tell
+  // a running shell that it just appended a color.
+  manageIpc: false
 
   implicitWidth: ColorState.empty ? 0 : button.implicitWidth
   implicitHeight: ColorState.empty ? 0 : button.implicitHeight
   visible: !ColorState.empty
 
-  onOpenedChanged: if (opened) list.reset()
+  // Reload on open as well as on pick.sh's callback, so the panel is correct
+  // even when that callback never arrived — the shell was not running, the
+  // widget was not in the bar, or the file was edited by hand.
+  onOpenedChanged: if (opened) { ColorState.reload(); list.reset() }
+
+  IpcHandler {
+    target: "io.github.arcanavox.colorhistory"
+
+    function open(): void { root.open() }
+    function close(): void { root.close() }
+    function show(): void { root.open() }
+    function hide(): void { root.close() }
+    function toggle(): void { root.toggle() }
+    function refresh(): void { ColorState.reload() }
+  }
 
   BarIconButton {
     id: button

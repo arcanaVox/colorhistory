@@ -20,6 +20,14 @@ exit 1
 STUB
 chmod +x "$TMP/bin/pkill"
 
+# pick.sh nudges a running shell after it appends. Stub it so the suite never
+# depends on one being up.
+cat >"$TMP/bin/omarchy-shell" <<'STUB'
+#!/bin/bash
+exit 0
+STUB
+chmod +x "$TMP/bin/omarchy-shell"
+
 stub_picker() {
   printf '#!/bin/bash\n%s\n' "$1" >"$TMP/bin/hyprpicker"
   chmod +x "$TMP/bin/hyprpicker"
@@ -73,6 +81,37 @@ exit 0
 STUB
 ./pick.sh
 check "a second press cancels instead of picking" "#FF0044 #22CC88 #FF0044" "$(colors)"
+
+# --- safeio.py: the planted-path cases -------------------------------------
+SAFEIO="$PWD/safeio.py"
+VICTIM="$TMP/victim.txt"
+echo "victim" >"$VICTIM"
+
+rm -f "$COLOR_HISTORY_FILE"
+ln -s "$VICTIM" "$COLOR_HISTORY_FILE"
+
+stub_picker 'echo "#123456"'
+./pick.sh
+check "a symlinked history is not written through" "victim" "$(cat "$VICTIM")"
+check "  and the link is left alone" "symbolic link" "$(stat -c %F "$COLOR_HISTORY_FILE")"
+
+python3 "$SAFEIO" read "$COLOR_HISTORY_FILE" >/dev/null 2>&1
+check "reading a symlink is refused" "1" "$?"
+
+printf 'x\n' | base64 -w0 | python3 "$SAFEIO" write "$COLOR_HISTORY_FILE" >/dev/null 2>&1
+check "writing replaces the link instead of following it" "victim" "$(cat "$VICTIM")"
+check "  and the path is a regular file after" "regular file" "$(stat -c %F "$COLOR_HISTORY_FILE")"
+
+rm -f "$COLOR_HISTORY_FILE"
+mkfifo "$COLOR_HISTORY_FILE"
+
+timeout 5 python3 "$SAFEIO" read "$COLOR_HISTORY_FILE" >/dev/null 2>&1
+check "reading a FIFO is refused rather than blocking" "1" "$?"
+
+timeout 5 python3 "$SAFEIO" append "$COLOR_HISTORY_FILE" $'1\t#FF0044' >/dev/null 2>&1
+check "appending to a FIFO is refused rather than blocking" "1" "$?"
+
+rm -f "$COLOR_HISTORY_FILE"
 
 if (( failures )); then
   echo "$failures failing"

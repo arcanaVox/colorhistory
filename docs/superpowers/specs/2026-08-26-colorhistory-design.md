@@ -222,3 +222,44 @@ newest at the top and starred above that.
 
 The consequence worth knowing: the keybinding needs the widget to be in the bar,
 since that is the object holding the IPC target.
+
+
+## 11. Revision — 2026-08-27, marketplace review
+
+The marketplace maintainer applied `needs-fixes` to submission #2658:
+
+> the always-loaded ColorState FileViews materialize the predictable history and
+> format files without byte or file-type bounds, while pick.sh appends through an
+> ordinary redirection. A planted FIFO can block the shared shell or picker, and
+> a planted symlink can redirect the append into another user file.
+
+Both are real. The state paths are predictable and sit in a directory anything
+running as the user can write, and the reader is a shell process shared by the
+whole desktop — so a FIFO there is a denial of service against the bar, the lock
+screen and notifications, not just this plugin.
+
+**`safeio.py`** now performs every read, append and whole-file write:
+`O_NOFOLLOW` (the final component may not be a symlink), `O_NONBLOCK` (opening a
+FIFO cannot park the caller), `S_ISREG` (whatever opened must be an ordinary
+file), and a 4 MiB ceiling. Writes go to a fresh file in the same directory and
+are renamed over the target, so a planted symlink is replaced rather than
+followed. `pick.sh` appends through it instead of `>>`. This mirrors the
+`safeRead` idiom in `io.github.weedwhitesandwine.plug`.
+
+**`FileView` is gone**, which cost the change watch. `pick.sh` now calls
+`omarchy-shell <id> refresh` after appending, and the panel reloads whenever it
+opens. Correctness never depends on the notification arriving — every read
+re-reads the file whole.
+
+Going async surfaced two races that `FileView` had been hiding, both caught by
+driving the real component in a throwaway Quickshell instance:
+
+- **A mutation before the first read lands** saw `rows === []` — empty because
+  nothing had been read, not because the history was empty — and persisted that,
+  truncating the file. Guarded by `loaded`: `save()` refuses until a read has
+  answered. A dropped star is a repeatable click; a truncated history is not.
+- **A reload issued just after a write** read the pre-write bytes and reverted
+  the model, and the next save would have persisted the revert — resurrecting a
+  deleted color. A generation counter alone did not fix this, because the stale
+  read *starts* after the write is issued. Reads now wait for writes to drain
+  (`writesInFlight()` / `reloadQueued`).

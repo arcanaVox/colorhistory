@@ -91,7 +91,14 @@ rm -f ~/.local/state/omarchy/color-history.tsv \
 ```
 
 Append-only from the picker's side; a third column marks a star. The format
-preference sits next to it in `color-history-format`. Delete either file to
+preference sits next to it in `color-history-format`.
+
+Every read and write of those two files goes through `safeio.py`, which opens
+with `O_NOFOLLOW` and `O_NONBLOCK`, refuses anything that is not an ordinary
+file, and caps how much it will read. They are predictable paths in a directory
+anything running as you can write to, and the shell that reads them stays up for
+days — a pipe planted at one of them would otherwise hang that shell, and a
+symlink would aim the writes at another of your files. Delete either file to
 start over — nothing else on your system is touched.
 
 The bar widget is the panel: `SUPER+SHIFT+PRINT` reaches it over IPC, so the
